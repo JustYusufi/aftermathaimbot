@@ -99,11 +99,11 @@ getgenv().ExunysDeveloperAimbot = {
 		Sensitivity = 0,
 		Sensitivity2 = 1,
 
-		LockMode = 1,
-		LockPart = "Head", -- Looks for parts named "Head" (case-insensitive)
-
-		TriggerKey = Enum.KeyCode.E, -- Hold 'E' to lock on
-		Toggle = false
+		LockMode = 2, -- Change from 1 to 2 (uses mousemoverel instead of CFrame)
+		Sensitivity2 = 2, -- Adjust this if it moves too fast or too slow (higher = slower/smoother)
+		
+		TriggerKey = Enum.KeyCode.Q, -- Make sure you are holding down 'E' to lock on! (You can change this back to MouseButton2 if you prefer right-click)
+		Toggle = true
 	},
 
 	Triggerbot = {
