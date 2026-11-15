@@ -1,6 +1,6 @@
 --[[
 
-	Universal Aimbot Module (Workspace Model Edition)
+	Universal Aimbot Module (Direct Part Scan Edition)
 	Based on Exunys © CC0 1.0 Universal (2023)
 
 ]]
@@ -89,8 +89,8 @@ getgenv().ExunysDeveloperAimbot = {
 	Settings = {
 		Enabled = true,
 
-		TeamCheck = false, -- Disabled by default since Workspace models use random names/custom setups
-		AliveCheck = true,
+		TeamCheck = false,
+		AliveCheck = false, -- Disabled since we aren't checking humanoids
 		WallCheck = false,
 
 		OffsetToMoveDirection = false,
@@ -100,19 +100,17 @@ getgenv().ExunysDeveloperAimbot = {
 		Sensitivity2 = 1,
 
 		LockMode = 1,
-		LockPart = "Head",
+		LockPart = "Head", -- Looks for parts named "Head" (case-insensitive)
 
-		TriggerKey = Enum.UserInputType.MouseButton2,
+		TriggerKey = Enum.KeyCode.E, -- Hold 'E' to lock on
 		Toggle = false
 	},
 
 	Triggerbot = {
 		Enabled = false,
-
 		TeamCheck = false,
-		AliveCheck = true,
+		AliveCheck = false,
 		AimLockedCheck = false,
-
 		Delay = 0
 	},
 
@@ -120,18 +118,18 @@ getgenv().ExunysDeveloperAimbot = {
 		Enabled = true,
 		Position = 3,
 
-		Transparency = 0.5,
-		Thickness = 1,
+		Transparency = 1,
+		Thickness = 2,
 
 		RainbowColor = false,
-		Color = Color3fromRGB(150, 150, 255)
+		Color = Color3fromRGB(255, 0, 0) -- Bright Red for easy visibility
 	},
 
 	FOVSettings = {
 		Enabled = true,
 		Visible = true,
 
-		Radius = 180,
+		Radius = 250,
 		NumSides = 60,
 
 		Thickness = 1,
@@ -189,33 +187,24 @@ end)
 
 local GetClosestPlayer = LPH_NO_VIRTUALIZE(function(Aux)
 	local Settings = Environment.Settings
-	local LockPart = Settings.LockPart
+	local LockPartName = stringlower(Settings.LockPart)
 
 	if not Environment.Locked or Aux then
 		RequiredDistance = Environment.FOVSettings.Enabled and Environment.FOVSettings.Radius or 2000
 		Required3DDistance = 10000
 
-		-- Scans Workspace directly for Models with a Humanoid and the target LockPart
-		for _, Character in next, workspace:GetChildren() do
-			if Character:IsA("Model") and Character ~= __index(LocalPlayer, "Character") then
-				local Humanoid = FindFirstChildOfClass(Character, "Humanoid")
-				local TargetPart = FindFirstChild(Character, LockPart)
+		-- Scans workspace directly for any BasePart matching the name (e.g., "Head")
+		for _, Descendant in next, GetDescendants(workspace) do
+			if Descendant:IsA("BasePart") and stringlower(Descendant.Name) == LockPartName then
+				local TargetPart = Descendant
+				local LocalChar = __index(LocalPlayer, "Character")
 
-				if Humanoid and TargetPart then
+				-- Ensure we don't target our own character's head
+				if not LocalChar or not TargetPart:IsDescendantOf(LocalChar) then
 					local PartPosition = __index(TargetPart, "Position")
 
-					if Settings.AliveCheck and __index(Humanoid, "Health") <= 0 then
-						continue
-					end
-
 					if Settings.WallCheck then
-						local LocalChar = __index(LocalPlayer, "Character")
 						local BlacklistTable = LocalChar and GetDescendants(LocalChar) or {}
-
-						for _, _Value in next, GetDescendants(Character) do
-							BlacklistTable[#BlacklistTable + 1] = _Value
-						end
-
 						if #GetPartsObscuringTarget(Camera, {PartPosition}, BlacklistTable) > 0 then
 							continue
 						end
@@ -231,18 +220,18 @@ local GetClosestPlayer = LPH_NO_VIRTUALIZE(function(Aux)
 						RequiredDistance, Required3DDistance = Distance, _3DDistance
 
 						if not Aux then
-							Environment.Locked = Character
+							Environment.Locked = TargetPart -- Stores the BasePart directly
 						elseif not Running and not Environment.Locked then
-							return Character
+							return TargetPart
 						end
 					end
 				end
 			end
 		end
 	else
-		local LockedChar = Environment.Locked
-		if LockedChar and FindFirstChild(LockedChar, LockPart) then
-			local LockedPosition_Vector3 = __index(LockedChar[LockPart], "Position")
+		local LockedPart = Environment.Locked
+		if LockedPart and LockedPart.Parent then
+			local LockedPosition_Vector3 = __index(LockedPart, "Position")
 			if (GetMouseLocation(UserInputService) - ConvertVector(WorldToViewportPoint(Camera, LockedPosition_Vector3))).Magnitude > RequiredDistance then
 				CancelLock()
 			end
@@ -255,41 +244,14 @@ end)
 local Load = function()
 	OriginalSensitivity = __index(UserInputService, "MouseDeltaSensitivity")
 
-	local Settings, Triggerbot, Tracer, FOVCircle, FOVCircleOutline, TracerSettings, FOVSettings, Offset = Environment.Settings, Environment.Triggerbot, Environment.Tracer, Environment.FOVCircle, Environment.FOVCircleOutline, Environment.ClosestPlayerTracer, Environment.FOVSettings
-	local OffsetToMoveDirection, LockPart = Settings.OffsetToMoveDirection, Settings.LockPart
-
+	local Settings, Triggerbot, Tracer, FOVCircle, FOVCircleOutline, TracerSettings, FOVSettings = Environment.Settings, Environment.Triggerbot, Environment.Tracer, Environment.FOVCircle, Environment.FOVCircleOutline, Environment.ClosestPlayerTracer, Environment.FOVSettings
 	local DeveloperSettings = Environment.DeveloperSettings
 	local UpdateMode = DeveloperSettings.UpdateMode
 
-	if mouse1press and mouse1release then
-		ServiceConnections.Triggerbot = Connect(__index(RunService, UpdateMode), LPH_NO_VIRTUALIZE(function()
-			if Triggerbot.Enabled and Mouse.Target then
-				local Character = Mouse.Target.Parent
-				local Humanoid = Character and FindFirstChildOfClass(Character, "Humanoid")
-
-				if Character and Character:IsA("Model") and Character ~= __index(LocalPlayer, "Character") and Humanoid then
-					if Triggerbot.AliveCheck and __index(Humanoid, "Health") <= 0 then
-						return
-					end
-
-					if Triggerbot.AimLockedCheck and not Environment.Locked then
-						return
-					end
-
-					if Triggerbot.Delay ~= 0 then
-						taskwait(Triggerbot.Delay)
-					end
-
-					mouse1press(); __index(RunService, UpdateMode):Wait(); mouse1release(); mouse1click(); __index(RunService, UpdateMode):Wait()
-				end
-			end
-		end))
-	end
-
 	ServiceConnections.UpdateTracer = Connect(__index(RunService, UpdateMode), LPH_NO_VIRTUALIZE(function()
-		local ClosestPlayer = TracerSettings.Enabled and Settings.Enabled and GetClosestPlayer(true)
+		local ClosestTarget = TracerSettings.Enabled and Settings.Enabled and GetClosestPlayer(true)
 
-		if ClosestPlayer then
+		if ClosestTarget then
 			setrenderproperty(Tracer, "Visible", true)
 
 			for Index, Value in next, TracerSettings do
@@ -314,7 +276,7 @@ local Load = function()
 				TracerSettings.Position = 3
 			end
 
-			setrenderproperty(Tracer, "To", ConvertVector(WorldToViewportPoint(Camera, __index(__index(ClosestPlayer, Settings.LockPart), "Position"))))
+			setrenderproperty(Tracer, "To", ConvertVector(WorldToViewportPoint(Camera, __index(ClosestTarget, "Position"))))
 		else
 			setrenderproperty(Tracer, "Visible", false)
 		end
@@ -347,11 +309,9 @@ local Load = function()
 		if Running and Settings.Enabled then
 			GetClosestPlayer()
 
-			Offset = OffsetToMoveDirection and __index(FindFirstChildOfClass(Environment.Locked, "Humanoid"), "MoveDirection") * (mathclamp(Settings.OffsetIncrement, 1, 30) / 10) or Vector3zero
-
 			if Environment.Locked then
-				local LockedPosition_Vector3 = __index(__index(Environment.Locked, LockPart), "Position")
-				local LockedPosition = WorldToViewportPoint(Camera, LockedPosition_Vector3 + Offset)
+				local LockedPosition_Vector3 = __index(Environment.Locked, "Position")
+				local LockedPosition = WorldToViewportPoint(Camera, LockedPosition_Vector3)
 
 				if Settings.LockMode == 2 then
 					mousemoverel((LockedPosition.X - GetMouseLocation(UserInputService).X) / Settings.Sensitivity2, (LockedPosition.Y - GetMouseLocation(UserInputService).Y) / Settings.Sensitivity2)
@@ -359,10 +319,10 @@ local Load = function()
 					mousemoveabs(LockedPosition.X, LockedPosition.Y)
 				else
 					if Settings.Sensitivity > 0 then
-						Animation = TweenService:Create(Camera, TweenInfonew(Settings.Sensitivity, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFramenew(Camera.CFrame.Position, LockedPosition_Vector3 + Offset)})
+						Animation = TweenService:Create(Camera, TweenInfonew(Settings.Sensitivity, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFramenew(Camera.CFrame.Position, LockedPosition_Vector3)})
 						Animation:Play()
 					else
-						__newindex(Camera, "CFrame", CFramenew(Camera.CFrame.Position, LockedPosition_Vector3 + Offset))
+						__newindex(Camera, "CFrame", CFramenew(Camera.CFrame.Position, LockedPosition_Vector3))
 					end
 
 					__newindex(UserInputService, "MouseDeltaSensitivity", 0)
@@ -381,7 +341,7 @@ local Load = function()
 
 		local TriggerKey, Toggle = Settings.TriggerKey, Settings.Toggle
 
-		if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == TriggerKey or Input.UserInputType == TriggerKey then
+		if Input.KeyCode == TriggerKey or Input.UserInputType == TriggerKey then
 			if Toggle then
 				Running = not Running
 
@@ -401,7 +361,7 @@ local Load = function()
 
 		local TriggerKey = Settings.TriggerKey
 
-		if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode == TriggerKey or Input.UserInputType == TriggerKey then
+		if Input.KeyCode == TriggerKey or Input.UserInputType == TriggerKey then
 			Running = false; CancelLock()
 		end
 	end))
@@ -456,4 +416,3 @@ Environment.Load = Load
 setmetatable(Environment, {__call = Load})
 
 return Environment
-
