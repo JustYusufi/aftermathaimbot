@@ -1,6 +1,6 @@
 --[[
 
-	Universal Aimbot Module (Optimized / FPS-Lag Fixed Edition)
+	Universal Aimbot Module (Optimized Workspace Scanner Edition)
 	Based on Exunys © CC0 1.0 Universal (2023)
 
 ]]
@@ -67,7 +67,7 @@ local CameraViewportSize = __index(Camera, "ViewportSize")
 --// Variables
 
 local RequiredDistance, Typing, Running, ServiceConnections, Animation, OriginalSensitivity = 2000, false, false, {}
-local CachedTargets = {} -- Optimized target cache to prevent FPS drops
+local CachedTargets = {}
 
 --// Environment
 
@@ -152,31 +152,40 @@ until Environment and Environment.FOVCircle and Environment.FOVCircleOutline
 setrenderproperty(Environment.FOVCircle, "Visible", false)
 setrenderproperty(Environment.FOVCircleOutline, "Visible", false)
 
---// Target Caching System (Fixes Lag)
-local function TrackPart(Part)
-	if Part:IsA("BasePart") and string.lower(Part.Name) == string.lower(Environment.Settings.LockPart) then
-		table.insert(CachedTargets, Part)
+--// Environment Setup (Using Workspace Child scanning like your ESP lib)
+local function setupEntity(model)
+	if model:IsA("Model") then
+		local TargetPart = model:FindFirstChild(Environment.Settings.LockPart) or model:FindFirstChild("HumanoidRootPart")
 		
-		Part.AncestryChanged:Connect(function(_, parent)
-			if not parent then
-				local index = table.find(CachedTargets, Part)
-				if index then
-					table.remove(CachedTargets, index)
+		if TargetPart and TargetPart:IsA("BasePart") then
+			local LocalChar = __index(LocalPlayer, "Character")
+			if not LocalChar or not TargetPart:IsDescendantOf(LocalChar) then
+				if not table.find(CachedTargets, TargetPart) then
+					table.insert(CachedTargets, TargetPart)
 				end
+				
+				model.AncestryChanged:Connect(function(_, parent)
+					if not parent then
+						local index = table.find(CachedTargets, TargetPart)
+						if index then
+							table.remove(CachedTargets, index)
+						end
+					end
+				end)
 			end
-		end)
+		end
 	end
 end
 
--- Initial scan once on startup (heavy part done only once)
-task.spawn(function()
-	for _, Descendant in ipairs(workspace:GetDescendants()) do
-		TrackPart(Descendant)
-	end
-end)
+-- Scan existing models in workspace
+for _, child in ipairs(workspace:GetChildren()) do
+	setupEntity(child)
+end
 
--- Listen for newly spawned models/parts dynamically without lagging
-ServiceConnections.DescendantAdded = workspace.DescendantAdded:Connect(TrackPart)
+-- Listen for new models spawning in workspace
+ServiceConnections.ChildAdded = workspace.ChildAdded:Connect(function(child)
+	setupEntity(child)
+end)
 
 
 --// Core Functions
@@ -203,7 +212,6 @@ local CancelLock = LPH_NO_VIRTUALIZE(function()
 	setrenderproperty(Environment.Tracer, "Visible", Environment.ClosestPlayerTracer.Enabled)
 end)
 
--- Optimized GetClosestPlayer using the pre-cached list (Zero FPS drop)
 local GetClosestPlayer = LPH_NO_VIRTUALIZE(function(Aux)
 	local Settings = Environment.Settings
 
@@ -213,32 +221,21 @@ local GetClosestPlayer = LPH_NO_VIRTUALIZE(function(Aux)
 
 		for _, TargetPart in ipairs(CachedTargets) do
 			if TargetPart and TargetPart.Parent then
-				local LocalChar = __index(LocalPlayer, "Character")
+				local PartPosition = __index(TargetPart, "Position")
+				local Vector, OnScreen, Distance = WorldToViewportPoint(Camera, PartPosition)
+				
+				Vector = ConvertVector(Vector)
+				Distance = (GetMouseLocation(UserInputService) - Vector).Magnitude
 
-				if not LocalChar or not TargetPart:IsDescendantOf(LocalChar) then
-					local PartPosition = __index(TargetPart, "Position")
+				local _3DDistance = (__index(Camera, "CFrame").Position - PartPosition).Magnitude
 
-					if Settings.WallCheck then
-						local BlacklistTable = LocalChar and LocalChar:GetDescendants() or {}
-						if #GetPartsObscuringTarget(Camera, {PartPosition}, BlacklistTable) > 0 then
-							continue
-						end
-					end
+				if Distance < RequiredDistance and _3DDistance < Required3DDistance and OnScreen then
+					RequiredDistance, Required3DDistance = Distance, _3DDistance
 
-					local Vector, OnScreen, Distance = WorldToViewportPoint(Camera, PartPosition)
-					Vector = ConvertVector(Vector)
-					Distance = (GetMouseLocation(UserInputService) - Vector).Magnitude
-
-					local _3DDistance = (__index(Camera, "CFrame").Position - PartPosition).Magnitude
-
-					if Distance < RequiredDistance and _3DDistance < Required3DDistance and OnScreen then
-						RequiredDistance, Required3DDistance = Distance, _3DDistance
-
-						if not Aux then
-							Environment.Locked = TargetPart
-						elseif not Running and not Environment.Locked then
-							return TargetPart
-						end
+					if not Aux then
+						Environment.Locked = TargetPart
+					elseif not Running and not Environment.Locked then
+						return TargetPart
 					end
 				end
 			end
