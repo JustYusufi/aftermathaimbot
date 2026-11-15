@@ -99,11 +99,11 @@ getgenv().ExunysDeveloperAimbot = {
 		Sensitivity = 0,
 		Sensitivity2 = 1,
 
-		LockMode = 2, -- Change from 1 to 2 (uses mousemoverel instead of CFrame)
+		LockMode = 1, -- Change from 1 to 2 (uses mousemoverel instead of CFrame)
 		Sensitivity2 = 2, -- Adjust this if it moves too fast or too slow (higher = slower/smoother)
 		
-		TriggerKey = Enum.KeyCode.Q, -- Make sure you are holding down 'E' to lock on! (You can change this back to MouseButton2 if you prefer right-click)
-		Toggle = true
+		TriggerKey = Enum.KeyCode.MouseButton2, -- Make sure you are holding down 'E' to lock on! (You can change this back to MouseButton2 if you prefer right-click)
+		Toggle = false
 	},
 
 	Triggerbot = {
