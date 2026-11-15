@@ -1,6 +1,6 @@
 --[[
 
-	Universal Aimbot Module (Direct Part Scan Edition)
+	Universal Aimbot Module (Custom Workspace & Dual Input Edition)
 	Based on Exunys © CC0 1.0 Universal (2023)
 
 ]]
@@ -90,19 +90,18 @@ getgenv().ExunysDeveloperAimbot = {
 		Enabled = true,
 
 		TeamCheck = false,
-		AliveCheck = false, -- Disabled since we aren't checking humanoids
+		AliveCheck = false,
 		WallCheck = false,
 
 		OffsetToMoveDirection = false,
 		OffsetIncrement = 15,
 
 		Sensitivity = 0,
-		Sensitivity2 = 1,
+		Sensitivity2 = 2, -- Mouse movement smoothness for LockMode 2
 
-		LockMode = 1, -- Change from 1 to 2 (uses mousemoverel instead of CFrame)
-		Sensitivity2 = 2, -- Adjust this if it moves too fast or too slow (higher = slower/smoother)
-		
-		TriggerKey = Enum.KeyCode.MouseButton2, -- Make sure you are holding down 'E' to lock on! (You can change this back to MouseButton2 if you prefer right-click)
+		LockMode = 2, -- Set to 2 (mousemoverel) for custom workspace models
+		LockPart = "Head",
+
 		Toggle = false
 	},
 
@@ -122,7 +121,7 @@ getgenv().ExunysDeveloperAimbot = {
 		Thickness = 2,
 
 		RainbowColor = false,
-		Color = Color3fromRGB(255, 0, 0) -- Bright Red for easy visibility
+		Color = Color3fromRGB(255, 0, 0)
 	},
 
 	FOVSettings = {
@@ -193,13 +192,11 @@ local GetClosestPlayer = LPH_NO_VIRTUALIZE(function(Aux)
 		RequiredDistance = Environment.FOVSettings.Enabled and Environment.FOVSettings.Radius or 2000
 		Required3DDistance = 10000
 
-		-- Scans workspace directly for any BasePart matching the name (e.g., "Head")
 		for _, Descendant in next, GetDescendants(workspace) do
 			if Descendant:IsA("BasePart") and stringlower(Descendant.Name) == LockPartName then
 				local TargetPart = Descendant
 				local LocalChar = __index(LocalPlayer, "Character")
 
-				-- Ensure we don't target our own character's head
 				if not LocalChar or not TargetPart:IsDescendantOf(LocalChar) then
 					local PartPosition = __index(TargetPart, "Position")
 
@@ -220,7 +217,7 @@ local GetClosestPlayer = LPH_NO_VIRTUALIZE(function(Aux)
 						RequiredDistance, Required3DDistance = Distance, _3DDistance
 
 						if not Aux then
-							Environment.Locked = TargetPart -- Stores the BasePart directly
+							Environment.Locked = TargetPart
 						elseif not Running and not Environment.Locked then
 							return TargetPart
 						end
@@ -334,23 +331,21 @@ local Load = function()
 		end
 	end))
 
+	--// Dual Input Connection: Q to Toggle, MouseButton2 to Hold
 	ServiceConnections.InputBeganConnection = Connect(__index(UserInputService, "InputBegan"), LPH_NO_VIRTUALIZE(function(Input)
 		if Typing then
 			return
 		end
 
-		local TriggerKey, Toggle = Settings.TriggerKey, Settings.Toggle
-
-		if Input.KeyCode == TriggerKey or Input.UserInputType == TriggerKey then
-			if Toggle then
-				Running = not Running
-
-				if not Running then
-					CancelLock()
-				end
-			else
-				Running = true
+		-- Q Key Toggle
+		if Input.KeyCode == Enum.KeyCode.Q then
+			Running = not Running
+			if not Running then
+				CancelLock()
 			end
+		-- Right Mouse Button Hold
+		elseif Input.UserInputType == Enum.UserInputType.MouseButton2 then
+			Running = true
 		end
 	end))
 
@@ -359,10 +354,10 @@ local Load = function()
 			return
 		end
 
-		local TriggerKey = Settings.TriggerKey
-
-		if Input.KeyCode == TriggerKey or Input.UserInputType == TriggerKey then
-			Running = false; CancelLock()
+		-- Right Mouse Button Release Stops Hold
+		if Input.UserInputType == Enum.UserInputType.MouseButton2 then
+			Running = false
+			CancelLock()
 		end
 	end))
 end
